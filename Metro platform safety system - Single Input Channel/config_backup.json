@@ -1,0 +1,33 @@
+{
+  "p1": [
+    280.7547169811321,
+    1.00418410041841
+  ],
+  "p2": [
+    298.11320754716985,
+    472.9707112970711
+  ],
+  "alert_side_pt": [
+    461.13207547169816,
+    153.64016736401672
+  ],
+  "threshold_pixels": 19.0,
+  "frame_width": 640,
+  "frame_height": 480,
+  "brightness": 0,
+  "contrast": 0,
+  "exposure": 0,
+  "saturation": 0,
+  "gamma": 0,
+  "person_conf_th": 0.05,
+  "train_conf_th": 0.05,
+  "alert_cooldown_seconds": 10,
+  "alert_volume": 60,
+  "tts_languages": [
+    "english",
+    "hindi"
+  ],
+  "tts_rate": 160,
+  "train_off_start": "16:28",
+  "train_off_end": "04:40"
+}

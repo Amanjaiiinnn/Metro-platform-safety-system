@@ -1,0 +1,17 @@
+[Unit]
+Description=Metro Safety System Autostart Service
+After=network.target
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/0
+ExecStart=/bin/sh /root/metro/startup_control.sh
+WorkingDirectory=/root/metro
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+
+

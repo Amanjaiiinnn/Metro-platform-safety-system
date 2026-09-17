@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metro Safety System</title>
+<meta name="description" content="Metro Safety System — real-time yellow-line proximity console for NPU-accelerated object detection.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:            #0a0c11;
+    --bg-2:          #0d0f16;
+    --panel:         #12151d;
+    --panel-2:       #171b26;
+    --border:        #232838;
+    --border-soft:   #1a1e2a;
+    --amber:         #f2b544;
+    --amber-bright:  #ffd166;
+    --amber-dim:     #6b5626;
+    --red:           #ff5a5f;
+    --green:         #3ddc84;
+    --cyan:          #6fd0e0;
+    --text:          #e9ecf3;
+    --text-dim:      #909aad;
+    --text-faint:    #565d70;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #141826 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #12161f 0%, transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  a{ color: inherit; }
+
+  /* ---------- shell ---------- */
+  .shell{ max-width: 1440px; margin: 0 auto; }
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 4px 4px 18px;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 20px;
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+
+  .brand-mark{
+    width:36px; height:36px; border-radius: 9px;
+    display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(155deg, #1c2130, #12151d);
+    border: 1px solid var(--border);
+    color: var(--amber);
+    font-family: var(--mono);
+    font-size: 17px;
+    box-shadow: inset 0 0 0 1px rgba(242,181,68,0.06);
+  }
+  .eyebrow{
+    display:block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .brand-text h1{
+    margin:0; font-size: 19px; font-weight: 600; letter-spacing: -0.01em;
+  }
+  .topbar-right{ display:flex; align-items:center; gap:12px; }
+
+  /* Status Pills (Schedule & Camera Input) */
+  .status-pill{
+    display:flex; align-items:center; gap:8px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--text-dim);
+    padding: 7px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--panel);
+    transition: all 0.3s ease;
+  }
+  .status-pill .dot{
+    width:8px; height:8px; border-radius:50%; background: var(--green);
+    box-shadow: 0 0 0 3px rgba(61,220,132,0.15);
+    transition: all 0.3s ease;
+  }
+
+  /* Camera Status Pill States */
+  .camera-pill.live{
+    color: var(--green); border-color: rgba(61,220,132,0.3);
+    box-shadow: 0 0 12px rgba(61,220,132,0.25);
+  }
+  .camera-pill.live .dot{
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse-green 2s infinite;
+  }
+
+  .camera-pill.blur, .camera-pill.black, .camera-pill.no_camera{
+    color: var(--red); border-color: rgba(255,90,95,0.4);
+    box-shadow: 0 0 14px rgba(255,90,95,0.35);
+  }
+  .camera-pill.blur .dot, .camera-pill.black .dot, .camera-pill.no_camera .dot{
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+    animation: pulse-red 1.5s infinite;
+  }
+
+  /* Schedule Status Pill States */
+  .schedule-pill.active{
+    color: var(--green); 
+    border-color: rgba(61,220,132,0.3);
+    box-shadow: 0 0 12px rgba(61,220,132,0.25);
+  }
+  .schedule-pill.active .dot{
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse-green 2s infinite;
+  }
+
+  .schedule-pill.inactive{
+    color: var(--red); 
+    border-color: rgba(255,90,95,0.4);
+    box-shadow: 0 0 14px rgba(255,90,95,0.35);
+  }
+  .schedule-pill.inactive .dot{
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+    animation: pulse-red 1.5s infinite;
+  }
+
+  @keyframes pulse-green{
+    0%,100%{ box-shadow: 0 0 0 3px rgba(61,220,132,0.2); }
+    50%{ box-shadow: 0 0 0 6px rgba(61,220,132,0.4); }
+  }
+  @keyframes pulse-red{
+    0%,100%{ box-shadow: 0 0 0 3px rgba(255,90,95,0.2); }
+    50%{ box-shadow: 0 0 0 6px rgba(255,90,95,0.5); }
+  }
+
+  .clock{
+    font-family: var(--mono); font-size: 14.5px; letter-spacing: 0.06em;
+    color: #ffffff;
+    padding: 7px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel);
+    min-width: 105px; text-align:center;
+  }
+
+  /* Antigravity Sidebar Toggle Button */
+  .sidebar-toggle-btn{
+    display:flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:8px;
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--text-dim); cursor:pointer;
+    transition: all 0.15s ease;
+  }
+  .sidebar-toggle-btn:hover{
+    color: var(--amber-bright); border-color: var(--amber-dim);
+    background: var(--panel-2);
+  }
+  .sidebar-toggle-btn.active{
+    color: var(--amber); border-color: var(--amber-dim);
+    background: rgba(242,181,68,0.1);
+  }
+  .sidebar-toggle-btn svg{ width:18px; height:18px; fill:currentColor; }
+
+  /* ---------- App Layout (Main Content Left + Right Sidebar) ---------- */
+  .app-layout{
+    display: flex; gap: 20px; align-items: flex-start;
+    position: relative; overflow: hidden;
+  }
+
+  /* Main Left Content Panel */
+  .main-panel{
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; gap: 18px;
+    transition: all 0.3s ease;
+  }
+
+  /* Right Collapsible Sidebar Panel */
+  .sidebar-panel{
+    width: 380px; flex-shrink: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, visibility 0.3s ease;
+    opacity: 1; visibility: visible;
+  }
+  .sidebar-panel.collapsed{
+    margin-right: -400px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .panel-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    padding: 14px 18px; border-bottom: 1px solid var(--border-soft);
+  }
+  .tag{
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    color: var(--bg); background: var(--amber);
+    padding: 3px 8px; border-radius: 4px; font-weight: 600;
+  }
+  .panel-sub{ font-size: 12.5px; color: var(--text-dim); }
+
+  /* ---------- live feed ---------- */
+  .feed-wrap{
+    position: relative; margin: 16px 18px 0;
+    border-radius: 8px; overflow: hidden; border: 1px solid var(--border-soft);
+    background: #060709;
+  }
+  .live-feed{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit: fill;
+    display:block;
+  }
+  .line-canvas{ position:absolute; inset:0; width:100%; height:100%; cursor: crosshair; }
+
+  /* Two camera tiles side by side; collapses to one column when only
+     cam1 is on, or when the window is too narrow for two. */
+  .feed-grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap: 18px;
+    align-items: start;
+  }
+  .feed-grid.single{ grid-template-columns: 1fr; }
+  @media (max-width: 1100px){
+    .feed-grid{ grid-template-columns: 1fr; }
+  }
+  .cam-panel.hidden{ display:none; }
+
+  /* Cam1 / Cam2 segmented selector for the per-camera tuning sliders */
+  .cam-select{
+    display:flex; gap:6px; margin-bottom: 14px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 4px;
+  }
+  .cam-select button{
+    flex:1; padding: 7px 10px; border-radius: 5px; cursor:pointer;
+    background: transparent; border: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    color: var(--text-dim); text-transform: uppercase;
+    transition: all 0.2s ease;
+  }
+  .cam-select button:hover:not(.active){ color: var(--text); }
+  .cam-select button.active{
+    background: rgba(242,181,68,0.14); color: var(--amber-bright);
+    box-shadow: inset 0 0 0 1px rgba(242,181,68,0.3);
+  }
+  .cam-select button:disabled{ opacity: 0.35; cursor: not-allowed; }
+
+  .feed-badge{
+    position:absolute; left:10px; bottom:10px; z-index:3;
+    font-family: var(--mono); font-size: 10px; letter-spacing:0.08em;
+    color: var(--text-faint); background: rgba(6,7,9,0.7);
+    border: 1px solid var(--border-soft); padding: 4px 8px; border-radius: 5px;
+    pointer-events: none;
+  }
+  .res-badge{
+    position:absolute; right:10px; bottom:10px; z-index:3;
+    font-family: var(--mono); font-size: 10px; letter-spacing:0.08em;
+    color: var(--amber-dim); background: rgba(6,7,9,0.7);
+    border: 1px solid var(--border-soft); padding: 4px 8px; border-radius: 5px;
+    pointer-events: none;
+  }
+
+  .feed-controls{
+    display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+    gap: 12px; padding: 14px 18px 18px;
+  }
+
+  /* ---------- form controls ---------- */
+  input[type=number], input[type=time], select{
+    background: var(--bg-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 9px; font-family: var(--mono); font-size: 13px;
+    outline: none;
+  }
+  input[type=number]:focus, input[type=time]:focus, select:focus{
+    border-color: var(--amber-dim); box-shadow: 0 0 0 3px rgba(242,181,68,0.10);
+  }
+  select{ font-family: var(--sans); }
+  /* Make the native browser clock picker icon white to match dark theme */
+  input[type=time]::-webkit-calendar-picker-indicator{
+    filter: invert(1); opacity: 0.75; cursor: pointer;
+  }
+  input[type=time]::-webkit-calendar-picker-indicator:hover{ opacity: 1; }
+
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height: 4px;
+    background: var(--border); border-radius: 3px; outline:none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:15px; height:15px; border-radius:50%;
+    background: var(--amber-bright); cursor:pointer;
+    border: 2px solid #241c07; box-shadow: 0 0 0 3px rgba(242,181,68,0.14);
+    transition: transform 0.1s ease;
+  }
+  input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.2); }
+  input[type=range]::-moz-range-thumb{
+    width:13px; height:13px; border-radius:50%; border: 2px solid #241c07;
+    background: var(--amber-bright); cursor:pointer;
+  }
+
+  .btn{
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+    padding: 9px 15px; border-radius: 7px; border: 1px solid transparent;
+    cursor: pointer; transition: filter 0.15s ease, transform 0.05s ease, opacity 0.15s ease;
+  }
+  .btn:active{ transform: translateY(1px); }
+  .btn:disabled{ opacity: 0.5; cursor: not-allowed; }
+  .btn-primary{ background: var(--amber); color: #1c1300; }
+  .btn-primary:hover:not(:disabled){ filter: brightness(1.08); }
+  .btn-ghost{ background: transparent; color: var(--text-dim); border-color: var(--border); }
+  .btn-ghost:hover:not(:disabled){ color: var(--text); border-color: #3a4258; }
+  .btn-row{ display:flex; gap:10px; }
+
+  .save-status{
+    font-family: var(--mono); font-size: 11.5px; color: var(--green);
+    min-height: 14px; transition: opacity 0.4s ease;
+  }
+  .save-status.error{ color: var(--red); }
+
+  /* ---------- tabs ---------- */
+  .tabs{ display:flex; flex-wrap:wrap; gap:2px; padding: 10px 10px 0; border-bottom: 1px solid var(--border-soft); }
+  .tab{
+    background:none; border:none; color: var(--text-dim);
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 10px 12px; cursor:pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; transition: color 0.15s ease;
+  }
+  .tab:hover{ color: var(--text); }
+  .tab.active{ color: var(--amber-bright); border-bottom-color: var(--amber); }
+
+  .tab-panel{ display:none; padding: 16px; }
+  .tab-panel.active{ display:block; }
+
+  .field{ margin-bottom: 18px; }
+  .field:last-child{ margin-bottom: 0; }
+  .field-label-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; }
+  .field label{ font-size: 12.5px; font-weight: 500; color: var(--text); }
+  .field-value{
+    font-family: var(--mono); font-size: 12px; color: var(--amber-bright);
+    background: rgba(242,181,68,0.08); padding: 2px 7px; border-radius: 5px;
+    min-width: 48px; text-align: center;
+  }
+  .field-hint{ margin: 6px 0 0; font-size: 11px; color: var(--text-faint); line-height:1.45; }
+
+  .row-2{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; }
+  .toggle{ position:relative; width: 40px; height: 22px; flex-shrink:0; }
+  .toggle input{ opacity:0; width:0; height:0; }
+  .toggle-track{
+    position:absolute; inset:0; background: var(--border); border-radius: 999px;
+    transition: background 0.15s ease; cursor:pointer;
+  }
+  .toggle-track::before{
+    content:""; position:absolute; width:16px; height:16px; left:3px; top:3px;
+    background: var(--text-dim); border-radius:50%; transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .toggle input:checked + .toggle-track{ background: rgba(242,181,68,0.28); }
+  .toggle input:checked + .toggle-track::before{ transform: translateX(18px); background: var(--amber-bright); }
+
+  .settings-footer{
+    display:flex; align-items:center; gap:12px; justify-content: space-between;
+    padding: 14px 16px; border-top: 1px solid var(--border-soft);
+  }
+  .settings-footer .btn{ flex-shrink:0; }
+
+  .schedule-readout{
+    display:flex; align-items:center; justify-content:space-between;
+    background: var(--bg-2); border: 1px solid var(--border-soft); border-radius: 8px;
+    padding: 10px 12px; margin-top: 14px;
+  }
+  .schedule-readout .sr-label{ font-size: 11px; color: var(--text-dim); letter-spacing:0.04em; }
+  .schedule-readout .sr-value{ font-family: var(--mono); font-size: 12.5px; color: var(--text); margin-top:2px; }
+  .badge{
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
+    padding: 3px 8px; border-radius: 999px; text-transform: uppercase;
+  }
+  .badge.on{ background: rgba(61,220,132,0.12); color: var(--green); }
+  .badge.off{ background: rgba(144,154,173,0.12); color: var(--text-dim); }
+
+  /* ---------- LED status strip ---------- */
+  .led-strip{
+    display:flex; flex-wrap:wrap; gap: 0;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: linear-gradient(180deg, #0e1017, #0a0b10);
+    overflow: hidden;
+  }
+  .led-item{
+    flex: 1 1 110px; padding: 11px 15px;
+    border-right: 1px solid var(--border-soft);
+  }
+  .led-item:last-child{ border-right: none; }
+  .led-label{
+    display:block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+    color: var(--text-faint); text-transform: uppercase; margin-bottom: 4px;
+  }
+  .led-value{
+    font-family: var(--mono); font-size: 11.2px; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--amber-bright);
+    text-shadow: 0 0 14px rgba(242,181,68,0.25);
+  }
+  .led-item.flicker .led-value{ animation: flicker-in 0.6s ease-out; }
+  @keyframes flicker-in{
+    0%{ opacity:0; } 20%{ opacity:1; } 32%{ opacity:0.3; } 45%{ opacity:1; } 100%{ opacity:1; }
+  }
+
+  footer.note{
+    margin-top: 4px; text-align:center; font-size: 11.5px; color: var(--text-faint);
+  }
+
+  /* ---------- Disabled select styles for TTS lang ---------- */
+  select:disabled{
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+    filter: grayscale(0.5);
+  }
+  select:disabled + .field-hint{
+    opacity: 0.5;
+  }
+  .disabled-field{
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .disabled-field select{
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .disabled-label{
+    color: var(--text-faint) !important;
+  }
+  /* ---------- Disabled select styles end ---------- */
+
+  /* ---------- Language checkboxes ---------- */
+  .lang-checkbox-group{
+    display: flex; flex-wrap: wrap; gap: 16px;
+  }
+  .lang-checkbox{
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text);
+    cursor: pointer; user-select: none;
+  }
+  .lang-checkbox input[type=checkbox]{
+    width: 16px; height: 16px;
+    accent-color: var(--amber-bright);
+    cursor: pointer;
+  }
+  
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ================= TOPBAR ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">&#9670;</div>
+      <div class="brand-text">
+        <h1>Metro Safety System</h1>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <!-- Camera Input Health Status Pills (Live / Blur / Black), one per
+           camera. Cam 2's pill is hidden entirely while camera 2 is off. -->
+      <div class="status-pill camera-pill live" id="cameraStatusPill">
+        <span class="dot" id="cameraDot"></span>
+        <span id="cameraStatusText">Cam 1: Live</span>
+      </div>
+
+      <div class="status-pill camera-pill live" id="camera2StatusPill" style="display:none;">
+        <span class="dot" id="camera2Dot"></span>
+        <span id="camera2StatusText">Cam 2: Live</span>
+      </div>
+
+      <!-- Train Schedule Status Pill -->
+      <div class="status-pill schedule-pill active" id="topbarSchedulePill">
+        <span class="dot" id="topbarScheduleDot"></span>
+        <span id="topbarScheduleText">Schedule: Active</span>
+      </div>
+
+      <div class="clock" id="clock" title="Board's own system clock (not this browser's)">00:00:00</div>
+
+      <!-- Antigravity Right Sidebar Toggle Button -->
+      <button class="sidebar-toggle-btn active" id="sidebarToggleBtn" title="Toggle Right Sidebar (Ctrl+B)">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 4h18v16H3V4zm10 2v12h6V6h-6zM5 6v12h6V6H5z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= APP LAYOUT (MAIN LEFT + SIDEBAR RIGHT) ================= -->
+  <div class="app-layout">
+
+    <!-- ================= LEFT: MAIN DISPLAY CONTENT ================= -->
+    <main class="main-panel">
+      <!-- Each camera gets its own tile with its own zone line. The lines
+           are per camera on purpose: cam1 and cam2 look at different
+           stretches of platform, so one shared line would be meaningless
+           on at least one of them. -->
+      <div class="feed-grid single" id="feedGrid">
+
+        <section class="panel cam-panel" id="camPanel-cam1">
+          <div class="panel-head">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="tag">Cam 1 · Zone Line</span>
+              <span class="panel-sub">Drag P1 / P2 / ALERT, then save</span>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="saveLineBtn">Save Line</button>
+            </div>
+          </div>
+
+          <div class="feed-wrap" id="feedWrap-cam1">
+            <!-- Live MJPEG stream from /video_feed -->
+            <img class="live-feed" id="liveFeed-cam1" src="/video_feed" alt="Camera 1 live feed" onerror="onFeedError('cam1')">
+            <canvas class="line-canvas" id="lineCanvas-cam1"></canvas>
+            <span class="feed-badge">LIVE · /video_feed</span>
+            <span class="res-badge" id="resBadge-cam1">— × —</span>
+          </div>
+
+          <div style="padding: 12px 18px 16px;">
+            <span class="save-status" id="lineSaveStatus"></span>
+          </div>
+        </section>
+
+        <section class="panel cam-panel hidden" id="camPanel-cam2">
+          <div class="panel-head">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="tag">Cam 2 · Zone Line</span>
+              <span class="panel-sub">Drag P1 / P2 / ALERT, then save</span>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="saveLineBtn2">Save Line</button>
+            </div>
+          </div>
+
+          <div class="feed-wrap" id="feedWrap-cam2">
+            <!-- Live MJPEG stream from /video_feed2 -->
+            <img class="live-feed" id="liveFeed-cam2" src="" alt="Camera 2 live feed" onerror="onFeedError('cam2')">
+            <canvas class="line-canvas" id="lineCanvas-cam2"></canvas>
+            <span class="feed-badge">LIVE · /video_feed2</span>
+            <span class="res-badge" id="resBadge-cam2">— × —</span>
+          </div>
+
+          <div style="padding: 12px 18px 16px;">
+            <span class="save-status" id="lineSaveStatus2"></span>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ================= STATUS STRIP ================= -->
+      <div class="led-strip" id="ledStrip">
+        <div class="led-item"><span class="led-label">Person Detection Threshold</span><span class="led-value" id="ledPerson">0.50</span></div>
+        <div class="led-item"><span class="led-label">Train Detection Threshold</span><span class="led-value" id="ledTrain">0.45</span></div>
+        <div class="led-item"><span class="led-label">Alert Cooldown</span><span class="led-value" id="ledCooldown">30 s</span></div>
+        <div class="led-item"><span class="led-label">Alert Volume</span><span class="led-value" id="ledVolume">100%</span></div>
+        <div class="led-item"><span class="led-label">Voice</span><span class="led-value" id="ledTts">EN</span></div>
+        <div class="led-item"><span class="led-label">Off Timing</span><span class="led-value" id="ledOffTiming">23:30-05:00</span></div>
+      </div>
+
+      <footer class="note">Metro Safety System · Live Feed</footer>
+    </main>
+
+    <!-- ================= RIGHT: SIDEBAR SETTINGS PANEL ================= -->
+    <aside class="sidebar-panel" id="sidebarPanel">
+      <div class="panel-head">
+        <div>
+          <span class="tag">Console Settings</span>
+        </div>
+        <span class="panel-sub">Ctrl+B to toggle</span>
+      </div>
+
+      <!-- TAB ORDER: Image (1st), Alerts & Audio (2nd), Train Schedule (3rd), Detection (4th) -->
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="image" id="tab-btn-image" aria-selected="true">Camera Tuning</button>
+        <button class="tab" data-tab="alerts" id="tab-btn-alerts" aria-selected="false">Alert &amp; Audio</button>
+        <button class="tab" data-tab="schedule" id="tab-btn-schedule" aria-selected="false">Scheduling</button>
+        <button class="tab" data-tab="detection" id="tab-btn-detection" aria-selected="false">Detection Tuning</button>
+      </div>
+
+      <!-- 1st TAB: IMAGE ADJUSTMENT -->
+      <div class="tab-panel active" id="tab-image" role="tabpanel">
+        <div class="field">
+          <div class="toggle-row">
+            <label for="camera2Enabled">Camera 2</label>
+            <div class="toggle">
+              <input type="checkbox" id="camera2Enabled">
+              <label class="toggle-track" for="camera2Enabled"></label>
+            </div>
+          </div>
+          <p class="field-hint">Adds a second camera feed. Detection alternates between the two cameras, so each keeps its full view at about half the inference rate. Camera 1 keeps running if camera 2 is unplugged.</p>
+        </div>
+
+        <!-- Image adjustments are stored PER CAMERA -- two cameras under
+             different lighting can't share one set of values. This
+             selector picks which camera the sliders below apply to. -->
+        <div class="cam-select" id="tuningCamSelect">
+          <button type="button" data-cam="cam1" class="active">Cam 1</button>
+          <button type="button" data-cam="cam2" disabled>Cam 2</button>
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="imgBrightness">Brightness</label>
+            <span class="field-value" id="imgBrightnessVal">0</span>
+          </div>
+          <input type="range" id="imgBrightness" min="-100" max="100" step="1" value="0">
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="imgContrast">Contrast</label>
+            <span class="field-value" id="imgContrastVal">0</span>
+          </div>
+          <input type="range" id="imgContrast" min="-100" max="100" step="1" value="0">
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="imgExposure">Exposure</label>
+            <span class="field-value" id="imgExposureVal">0</span>
+          </div>
+          <input type="range" id="imgExposure" min="-100" max="100" step="1" value="0">
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="imgSaturation">Saturation</label>
+            <span class="field-value" id="imgSaturationVal">0</span>
+          </div>
+          <input type="range" id="imgSaturation" min="-100" max="100" step="1" value="0">
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="imgGamma">Gamma</label>
+            <span class="field-value" id="imgGammaVal">0</span>
+          </div>
+          <input type="range" id="imgGamma" min="-100" max="100" step="1" value="0">
+          <p class="field-hint">Applied to every frame detection.</p>
+        </div>
+
+        <div class="field" style="margin-top:14px;">
+          <button class="btn btn-ghost" id="resetImageBtn" style="width:100%;">Reset Image Adjustments</button>
+        </div>
+      </div>
+
+      <!-- 2nd TAB: ALERTS & AUDIO -->
+      <div class="tab-panel" id="tab-alerts" role="tabpanel">
+        <div class="field">
+          <div class="field-label-row">
+            <label for="cooldown">Alert Cooldown</label>
+            <span class="field-value" id="cooldownVal">30 s</span>
+          </div>
+          <input type="range" id="cooldown" min="10" max="300" step="5" value="30">
+          <p class="field-hint">Minimum gap between spoken alerts.</p>
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="alertVolume">Alert Volume</label>
+            <span class="field-value" id="alertVolumeVal">100%</span>
+          </div>
+          <input type="range" id="alertVolume" min="0" max="200" step="5" value="100">
+          <p class="field-hint">Clips are auto-normalized, so 100% is each clip's loudest level before it distorts. Above 100% pushes louder still but will clip/distort more.</p>
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label>Alert Voice Language(s)</label>
+          </div>
+          <div class="lang-checkbox-group">
+            <label class="lang-checkbox">
+              <input type="checkbox" id="langEnglish" value="english" checked>
+              <span>English</span>
+            </label>
+            <label class="lang-checkbox">
+              <input type="checkbox" id="langHindi" value="hindi">
+              <span>Hindi</span>
+            </label>
+              <input type="checkbox" id="langRegional" value="regional">
+              <span>Regional</span>
+            </label>
+          </div>
+          <p class="field-hint">Spoken alert plays in every language checked, one after another. Uncheck all for No alerts.</p>
+        </div>
+      </div>
+
+      <!-- 3rd TAB: TRAIN SCHEDULE -->
+      <div class="tab-panel" id="tab-schedule" role="tabpanel">
+        <div class="field">
+          <div class="field-label-row"><label>No-Detection Window</label></div>
+          <div class="row-2">
+            <div>
+              <div class="field-hint" style="margin:0 0 6px;">From</div>
+              <input type="time" id="trainOffStart" value="23:30" style="width:100%;">
+            </div>
+            <div>
+              <div class="field-hint" style="margin:0 0 6px;">To</div>
+              <input type="time" id="trainOffEnd" value="05:00" style="width:100%;">
+            </div>
+          </div>
+          <p class="field-hint">During this window, All Alerts will be ignored.</p>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <label for="syncDeviceTime">Sync Device Clock</label>
+            <div class="toggle">
+              <input type="checkbox" id="syncDeviceTime" checked>
+              <label class="toggle-track" for="syncDeviceTime"></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="manualTime">Current Time</label>
+            <span class="field-value" id="timeSourceTag">Device</span>
+          </div>
+          <input type="time" id="manualTime" step="1" style="width:100%;" disabled>
+        </div>
+
+        <div class="field">
+          <button class="btn btn-ghost" id="syncTimeBtn" style="width:100%;">Sync Device Time Now</button>
+        </div>
+
+        <div class="schedule-readout">
+          <div>
+            <div class="sr-label">No-detection window</div>
+            <div class="sr-value" id="scheduleWindowText">23:30 → 05:00</div>
+          </div>
+          <span class="badge on" id="scheduleBadge">Detection Active</span>
+        </div>
+      </div>
+
+      <!-- 4th TAB: DETECTION -->
+      <div class="tab-panel" id="tab-detection" role="tabpanel">
+        <div class="field">
+          <div class="field-label-row">
+            <label for="personTh">Person Confidence Threshold</label>
+            <span class="field-value" id="personThVal">0.50</span>
+          </div>
+          <input type="range" id="personTh" min="0.05" max="1" step="0.01" value="0.5">
+          <p class="field-hint">Minimum detector confidence before a Person box counts toward the line check.</p>
+        </div>
+
+        <div class="field">
+          <div class="field-label-row">
+            <label for="trainTh">Train Confidence Threshold</label>
+            <span class="field-value" id="trainThVal">0.45</span>
+          </div>
+          <input type="range" id="trainTh" min="0.05" max="1" step="0.01" value="0.45">
+          <p class="field-hint">Minimum confidence before a Train box is reported.</p>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        <span class="save-status" id="settingsSaveStatus"></span>
+        <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Utilities
+// ============================================================
+function two(n){ return String(n).padStart(2,'0'); }
+function timeToMinutes(t){ const[h,m]=t.split(':').map(Number); return h*60+m; }
+
+function flashStatus(el, text, isError){
+  el.textContent = text;
+  el.classList.toggle('error', !!isError);
+  el.style.opacity = 1;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = 0; }, 2800);
+}
+
+// ============================================================
+// Clock + Topbar Schedule Status Badge
+// ============================================================
+// manualTime (Scheduling tab, sync-preview) still mirrors the BROWSER's
+// clock here -- that's correct, it's "what will be pushed if you sync
+// now". The topbar clock is a different thing entirely: see
+// tickTopbarClock() below, which shows the BOARD's own clock instead.
+function updateClock(){
+  const now = new Date();
+  const hh = two(now.getHours()), mm = two(now.getMinutes());
+  if (document.getElementById('syncDeviceTime').checked){
+    document.getElementById('manualTime').value = `${hh}:${mm}`;
+  }
+}
+
+// Renders the badge/pill DOM for a given on/off state. The board's
+// actual enforced state (its own system clock + whatever's currently in
+// config.json) is the ONLY thing allowed to call this -- see
+// fetchDeviceStatus() below. Earlier this was also driven by a local
+// client-side guess on every clock tick, but that guess used whatever
+// was sitting in the time inputs even before it was saved/previewed to
+// the server, while the poll used the last value the server actually
+// had -- two different sources fighting over the same badge caused it
+// to flicker between "Active" and "Off-Hours" whenever there were
+// unsaved edits. Single source of truth now: server decides the color,
+// the inputs only decide the text readout below.
+function renderScheduleBadge(withinOff){
+  const badge = document.getElementById('scheduleBadge');
+  const topbarPill = document.getElementById('topbarSchedulePill');
+  const topbarText = document.getElementById('topbarScheduleText');
+  const topbarDot = document.getElementById('topbarScheduleDot');
+
+  if (withinOff){
+    // INACTIVE - Red Glow (like camera blur/black)
+    badge.textContent = 'Train Detection Off';
+    badge.className = 'badge off';
+
+    topbarPill.className = 'status-pill schedule-pill inactive';
+    topbarText.textContent = 'Schedule: Off-Hours';
+    topbarDot.style.background = 'var(--red)';
+    topbarDot.style.boxShadow = '0 0 8px var(--red)';
+
+  } else {
+    // ACTIVE - Green Glow (like camera live)
+    badge.textContent = 'Detection Active';
+    badge.className = 'badge on';
+
+    topbarPill.className = 'status-pill schedule-pill active';
+    topbarText.textContent = 'Schedule: Active';
+    topbarDot.style.background = 'var(--green)';
+    topbarDot.style.boxShadow = '0 0 8px var(--green)';
+  }
+}
+
+// Text-only: mirrors whatever's currently in the From/To inputs into the
+// readout + LED strip. Deliberately does NOT decide on/off color anymore
+// -- see renderScheduleBadge's comment above.
+function updateScheduleWindowText(){
+  const start = document.getElementById('trainOffStart').value || '00:00';
+  const end   = document.getElementById('trainOffEnd').value   || '00:00';
+  document.getElementById('scheduleWindowText').textContent = `${start} → ${end}`;
+  document.getElementById('ledOffTiming').textContent = `${start}-${end}`;
+}
+
+// Tracks (board time) - (browser Date.now()) in ms, refreshed on every
+// successful poll below. Ticking off this offset every second (instead
+// of just slapping the last-polled string on screen) keeps the topbar
+// clock moving smoothly between the 1.5s polls, same visual feel as
+// before, but the seconds it's counting up from are the BOARD's, not
+// the browser's.
+let _deviceTimeOffsetMs = null;
+
+function tickTopbarClock(){
+  const el = document.getElementById('clock');
+  if (_deviceTimeOffsetMs === null){
+    el.textContent = '--:--:--';
+    return;
+  }
+  const d = new Date(Date.now() + _deviceTimeOffsetMs);
+  // getUTCHours/Minutes/Seconds, NOT getHours/Minutes/Seconds: the server
+  // now encodes device_time_epoch by treating the synced wall-clock digits
+  // as UTC (see line_config_server.py's /camera_status), specifically so
+  // this display never depends on the browser's own local timezone. Local
+  // getHours() would re-apply the browser's UTC offset on top of an epoch
+  // that's already a UTC-convention encoding of those same digits --
+  // that double application is what made the topbar clock drift by a full
+  // timezone offset (e.g. +5:30) from the real device time shown
+  // elsewhere on the dashboard.
+  el.textContent = `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}:${two(d.getUTCSeconds())}`;
+}
+setInterval(tickTopbarClock, 1000);
+
+// Polls the board's actual state every 1.5s: the enforced schedule
+// status (real system clock, same is_schedule_off() the pipeline itself
+// checks every frame) AND the board's raw current time -- this is what
+// lets the topbar clock show the BOARD's time instead of the browser's,
+// so drift is visible on the dashboard itself instead of needing SSH
+// access to the terminal's [Clock] log line to notice it.
+async function fetchDeviceStatus(){
+  try {
+    const res = await fetch('/camera_status');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (typeof data.schedule_active === 'boolean'){
+      renderScheduleBadge(!data.schedule_active);
+    }
+    if (typeof data.device_time_epoch === 'number'){
+      _deviceTimeOffsetMs = (data.device_time_epoch * 1000) - Date.now();
+      tickTopbarClock();
+    }
+  } catch(e){}
+}
+setInterval(fetchDeviceStatus, 1500);
+fetchDeviceStatus();
+
+document.getElementById('syncDeviceTime').addEventListener('change', e => {
+  const manualTime = document.getElementById('manualTime');
+  const tag = document.getElementById('timeSourceTag');
+  if (e.target.checked){ manualTime.disabled = true; tag.textContent = 'Device'; syncDeviceTime(); }
+  else { manualTime.disabled = false; tag.textContent = 'Manual'; manualTime.focus(); }
+});
+
+// Editing the off-window times now behaves like every other setting
+// (brightness, thresholds, etc.): it live-previews to the server
+// (schedulePreview -> /update_lines, save_both:false) instead of only
+// taking effect after "Save settings" is clicked. Without this, the
+// server's enforced window stays on whatever was last explicitly saved
+// while these inputs show something newer -- exactly the mismatch that
+// caused the badge to flicker.
+function onScheduleWindowInput(){
+  updateScheduleWindowText();
+  markUnsavedChange();
+  schedulePreview();
+}
+document.getElementById('trainOffStart').addEventListener('input', onScheduleWindowInput);
+document.getElementById('trainOffEnd').addEventListener('input', onScheduleWindowInput);
+
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============================================================
+// Push time to the board's system clock (/set_device_time)
+// Board has no internet -> no NTP -> no RTC -> clock only ever comes
+// from whatever's pushed here.
+// ============================================================
+function buildDeviceDatetimeString(){
+  const now = new Date(); // browser's own date is trusted for the DATE part either way
+  const syncOn = document.getElementById('syncDeviceTime').checked;
+  let hh, mm, ss;
+  if (syncOn){
+    hh = now.getHours(); mm = now.getMinutes(); ss = now.getSeconds();
+  } else {
+    const parts = (document.getElementById('manualTime').value || '00:00').split(':').map(Number);
+    hh = parts[0] || 0; mm = parts[1] || 0; ss = parts[2] || 0;
+  }
+  return `${now.getFullYear()}-${two(now.getMonth()+1)}-${two(now.getDate())} ${two(hh)}:${two(mm)}:${two(ss)}`;
+}
+
+async function syncDeviceTime(){
+  const btn = document.getElementById('syncTimeBtn');
+  const statusEl = document.getElementById('settingsSaveStatus');
+  const dtStr = buildDeviceDatetimeString();
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/set_device_time', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ datetime: dtStr })
+    });
+    const data = await res.json();
+    if (data.status === 'set'){
+      flashStatus(statusEl, `Device time set to ${dtStr}`);
+    } else if (data.status === 'skipped'){
+      flashStatus(statusEl, 'Sync skipped (not running on the board)');
+    } else {
+      flashStatus(statusEl, data.message || 'Failed to set device time', true);
+    }
+  } catch(e){
+    flashStatus(statusEl, 'Device time sync failed — check connection', true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+document.getElementById('syncTimeBtn').addEventListener('click', syncDeviceTime);
+
+// While "Sync device clock" stays ON, re-push periodically so a long
+// session doesn't let the board's clock quietly drift again.
+setInterval(() => {
+  if (document.getElementById('syncDeviceTime').checked) syncDeviceTime();
+}, 5 * 60 * 1000);
+
+// ============================================================
+// Camera Input Health Status (Live / Blur / Black)
+// ============================================================
+// One pill per camera. Both read the same /camera_status poll, which now
+// reports each camera's health separately -- a covered lens on cam2 says
+// nothing about cam1's view, so they must never share a status.
+const CAM_IDS    = ['cam1', 'cam2'];
+const CAM_LABELS = { cam1: 'Cam 1', cam2: 'Cam 2' };
+const PILL_IDS   = {
+  cam1: { pill: 'cameraStatusPill',  text: 'cameraStatusText'  },
+  cam2: { pill: 'camera2StatusPill', text: 'camera2StatusText' },
+};
+
+function updateCameraStatus(cam, status, message){
+  const ids  = PILL_IDS[cam];
+  if (!ids) return;
+  const pill = document.getElementById(ids.pill);
+  const text = document.getElementById(ids.text);
+  if (!pill || !text) return;
+
+  const st = (status || 'live').toLowerCase();
+  pill.className = `status-pill camera-pill ${st}`;
+
+  const label = CAM_LABELS[cam];
+  if (st === 'blur'){
+    text.textContent = `${label}: Blur / Obstructed`;
+  } else if (st === 'black'){
+    text.textContent = `${label}: Black Frame`;
+  } else if (st === 'no_camera'){
+    // The server distinguishes "not plugged in" from "switched off in the
+    // dashboard" via the message, so pass its wording through rather than
+    // always claiming a missing camera.
+    text.textContent = `${label}: ${message || 'Not Connected'}`;
+  } else {
+    text.textContent = `${label}: Live`;
+  }
+}
+
+function onFeedError(cam){
+  updateCameraStatus(cam || 'cam1', 'black', 'Black Frame');
+}
+
+async function fetchCameraStatus(){
+  try {
+    const res = await fetch('/camera_status');
+    if (!res.ok) return;
+    const data = await res.json();
+    const cams = data.cameras || {};
+    CAM_IDS.forEach(cam => {
+      const entry = cams[cam];
+      if (entry) updateCameraStatus(cam, entry.status, entry.message);
+    });
+    // The toggle can also be flipped from another browser tab; follow it.
+    if (typeof data.camera2_enabled === 'boolean'){
+      applyCamera2Enabled(data.camera2_enabled, false);
+    }
+  } catch(e){}
+}
+setInterval(fetchCameraStatus, 1500);
+
+// ============================================================
+// Tabs
+// ============================================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active'); tab.setAttribute('aria-selected','true');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ============================================================
+// Backup / auto-restore logic
+// If user fidgets with settings for 30s without clicking Save,
+// restore values from backup automatically.
+// ============================================================
+let _restoreTimer  = null;
+let _unsavedChanges = false;
+
+function markUnsavedChange(){
+  _unsavedChanges = true;
+  startRestoreTimer();
+}
+
+function markSaved(){
+  _unsavedChanges = false;
+  clearRestoreTimer();
+}
+
+function startRestoreTimer(){
+  clearRestoreTimer();
+  _restoreTimer = setTimeout(async () => {
+    if (!_unsavedChanges) return;
+    try {
+      const res = await fetch('/restore_backup', { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'restored'){
+        await loadConfig();
+        flashStatus(document.getElementById('settingsSaveStatus'),
+          'Unsaved changes discarded after 30s idle (restored from backup)', true);
+        flashStatus(document.getElementById('lineSaveStatus'),
+          'Unsaved changes discarded after 30s idle', true);
+      }
+    } catch(e){
+      console.warn('Auto-restore failed:', e);
+    }
+    _unsavedChanges = false;
+  }, 30000);
+}
+
+function clearRestoreTimer(){
+  if (_restoreTimer){ clearTimeout(_restoreTimer); _restoreTimer = null; }
+}
+
+let previewTimer = null;
+function schedulePreview(){
+  if (previewTimer) clearTimeout(previewTimer);
+  previewTimer = setTimeout(sendPreview, 40);
+}
+
+// Single source of truth for the request body, used by both the live
+// preview (save_both:false) and the explicit Save. They used to be two
+// near-identical literals that could silently drift apart.
+//
+// Every request carries BOTH cameras' blocks: the two lines are edited on
+// the same page, and posting only the camera that happened to move would
+// leave the server merging against whatever it last heard, which gets
+// confusing the moment two browser tabs are open.
+function buildConfigBody(explicitSave){
+  const cameras = {};
+  CAM_IDS.forEach(cam => {
+    const ed = editors[cam];
+    // A camera whose config hasn't loaded yet (no points) is left out
+    // entirely -- the server keeps its stored block untouched rather than
+    // having nulls written over a good line.
+    if (!ed.p1 || !ed.p2 || !ed.alertPt) return;
+    cameras[cam] = {
+      p1: ed.p1, p2: ed.p2, alert_side_pt: ed.alertPt,
+      frame_width: ed.frameW, frame_height: ed.frameH,
+      brightness: ed.img.brightness | 0,
+      contrast:   ed.img.contrast   | 0,
+      exposure:   ed.img.exposure   | 0,
+      saturation: ed.img.saturation | 0,
+      gamma:      ed.img.gamma      | 0,
+    };
+  });
+
+  return {
+    cameras,
+    save_both: !!explicitSave,
+    camera2_enabled: document.getElementById('camera2Enabled').checked,
+
+    person_conf_th: Math.max(0.05, Number(document.getElementById('personTh').value)),
+    train_conf_th:  Math.max(0.05, Number(document.getElementById('trainTh').value)),
+    alert_cooldown_seconds: Number(document.getElementById('cooldown').value),
+    alert_volume: Number(document.getElementById('alertVolume').value),
+    tts_languages: getSelectedLanguages(),
+    tts_rate: 160, // Fixed rate
+    train_off_start: document.getElementById('trainOffStart').value,
+    train_off_end:   document.getElementById('trainOffEnd').value,
+  };
+}
+
+async function sendPreview(){
+  try {
+    await fetch('/update_lines', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(buildConfigBody(false))
+    });
+  } catch(e){}
+}
+
+function bindRange(id, valId, ledId, fmt, onChange){
+  const input = document.getElementById(id);
+  const val   = document.getElementById(valId);
+  const led   = ledId ? document.getElementById(ledId) : null;
+  const render = () => {
+    const text = fmt ? fmt(input.value) : input.value;
+    val.textContent = text;
+    if (led) led.textContent = text;
+  };
+  input.addEventListener('input', () => {
+    render();
+    if (onChange) onChange(input.value);
+    markUnsavedChange();
+    schedulePreview();
+  });
+  render();
+}
+
+bindRange('personTh', 'personThVal', 'ledPerson', v => Number(v).toFixed(2));
+bindRange('trainTh',  'trainThVal',  'ledTrain',  v => Number(v).toFixed(2));
+bindRange('cooldown', 'cooldownVal', 'ledCooldown', v => `${v} s`);
+bindRange('alertVolume', 'alertVolumeVal', 'ledVolume', v => `${v}%`);
+
+// ============================================================
+// Language checkboxes -- multi-select, replaces the old single ttsLang
+// dropdown. Any combination of english/hindi/regional can be on at once;
+// AlertEngine (Python side) plays each checked language's WAV clips back
+// to back for every alert.
+// ============================================================
+function getSelectedLanguages(){
+  const codes = [];
+  if (document.getElementById('langEnglish').checked)  codes.push('english');
+  if (document.getElementById('langHindi').checked)    codes.push('hindi');
+  if (document.getElementById('langRegional').checked) codes.push('regional');
+  return codes;
+}
+
+function updateLedTts(){
+  const labels = { english: 'EN', hindi: 'HI', regional: 'REG' };
+  const codes = getSelectedLanguages();
+  document.getElementById('ledTts').textContent = codes.length
+    ? codes.map(c => labels[c]).join('+')
+    : 'Off (silent)';
+}
+
+['langEnglish', 'langHindi', 'langRegional'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    updateLedTts();
+    markUnsavedChange();
+    schedulePreview();
+  });
+});
+
+// Image adjustment sliders are bound further down, after the per-camera
+// editors exist -- they write into the SELECTED camera's own state rather
+// than into one shared set of values.
+
+// ============================================================
+// Canvas drag handles — P1 / P2 / ALERT
+// ============================================================
+// One editor object per camera. This used to be a single set of module
+// globals (canvas/ctx/p1/p2/alertPt/dragging), which is why it became a
+// factory: cam1 and cam2 each own a completely independent line, drawn on
+// their own canvas over their own feed, and dragging one must never move
+// the other's.
+function makeLineEditor(cam){
+  const canvas = document.getElementById(`lineCanvas-${cam}`);
+  const wrap   = document.getElementById(`feedWrap-${cam}`);
+  const ctx    = canvas.getContext('2d');
+
+  const ed = {
+    cam, canvas, ctx, wrap,
+    frameW: 640, frameH: 480,
+    p1: null, p2: null, alertPt: null,
+    // Per-camera image adjustments, held here so switching the sidebar's
+    // Cam1/Cam2 selector swaps slider values without a server round-trip.
+    img: { brightness:0, contrast:0, exposure:0, saturation:0, gamma:0 },
+    dragging: null, hovered: null,
+  };
+
+  function displayPt(fp){
+    return [ fp[0] / ed.frameW * canvas.width, fp[1] / ed.frameH * canvas.height ];
+  }
+
+  function framePt(dp){
+    return [
+      Math.round(dp[0] / canvas.width  * ed.frameW),
+      Math.round(dp[1] / canvas.height * ed.frameH)
+    ];
+  }
+
+  function handle(pt, color, label){
+    const isHov = ed.hovered === label.toLowerCase();
+    const r = isHov ? 10 : 8;
+
+    ctx.beginPath(); ctx.arc(pt[0], pt[1], r, 0, 2*Math.PI);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#0a0c11'; ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.font = '600 10px IBM Plex Mono, monospace';
+    ctx.fillText(label, pt[0] - 11, pt[1] - 14);
+  }
+
+  ed.draw = function(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!ed.p1 || !ed.p2 || !ed.alertPt) return;
+
+    const dp1 = displayPt(ed.p1);
+    const dp2 = displayPt(ed.p2);
+    const dal = displayPt(ed.alertPt);
+
+    ctx.strokeStyle = 'rgba(242,181,68,0.9)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([9, 5]);
+    ctx.beginPath(); ctx.moveTo(dp1[0], dp1[1]); ctx.lineTo(dp2[0], dp2[1]); ctx.stroke();
+    ctx.setLineDash([]);
+
+    handle(dp1, '#f2b544', 'P1');
+    handle(dp2, '#6fd0e0', 'P2');
+    handle(dal, '#ff5a5f', 'ALERT');
+  };
+
+  ed.resize = function(){
+    const rect = wrap.getBoundingClientRect();
+    canvas.width  = rect.width;
+    canvas.height = rect.height;
+    ed.draw();
+  };
+
+  function hitName(x, y){
+    if (!ed.p1 || !ed.p2 || !ed.alertPt) return null;
+    const dp1 = displayPt(ed.p1), dp2 = displayPt(ed.p2), dal = displayPt(ed.alertPt);
+    if (Math.hypot(x - dp1[0], y - dp1[1]) <= 15) return 'p1';
+    if (Math.hypot(x - dp2[0], y - dp2[1]) <= 15) return 'p2';
+    if (Math.hypot(x - dal[0], y - dal[1]) <= 15) return 'alert';
+    return null;
+  }
+
+  function canvasCoords(e){
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    const {x, y} = canvasCoords(e);
+    ed.dragging = hitName(x, y);
+    canvas.style.cursor = ed.dragging ? 'grabbing' : 'crosshair';
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const {x, y} = canvasCoords(e);
+    if (!ed.dragging){
+      ed.hovered = hitName(x, y);
+      canvas.style.cursor = ed.hovered ? 'grab' : 'crosshair';
+      ed.draw();
+      return;
+    }
+    const cx = Math.max(0, Math.min(x, canvas.width  - 1));
+    const cy = Math.max(0, Math.min(y, canvas.height - 1));
+    const fp = framePt([cx, cy]);
+    if      (ed.dragging === 'p1')    ed.p1      = fp;
+    else if (ed.dragging === 'p2')    ed.p2      = fp;
+    else if (ed.dragging === 'alert') ed.alertPt = fp;
+    ed.draw();
+    markUnsavedChange();
+    schedulePreview();
+  });
+
+  canvas.addEventListener('mouseleave', () => { ed.hovered = null; ed.draw(); });
+  window.addEventListener('mouseup', () => {
+    ed.dragging = null;
+    canvas.style.cursor = ed.hovered ? 'grab' : 'crosshair';
+  });
+
+  return ed;
+}
+
+const editors = { cam1: makeLineEditor('cam1'), cam2: makeLineEditor('cam2') };
+
+function resizeCanvas(){
+  CAM_IDS.forEach(cam => editors[cam].resize());
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+// ============================================================
+// Camera 2 on/off + which camera the tuning sliders edit
+// ============================================================
+const IMG_KEYS = ['brightness', 'contrast', 'exposure', 'saturation', 'gamma'];
+const IMG_SLIDER_IDS = {
+  brightness: 'imgBrightness', contrast: 'imgContrast', exposure: 'imgExposure',
+  saturation: 'imgSaturation', gamma: 'imgGamma',
+};
+
+let tuningCam = 'cam1';   // which camera the image sliders currently edit
+let camera2On = false;
+
+// Image sliders write into whichever camera is selected above. Binding
+// them here (rather than with the global sliders) is what keeps cam1's
+// exposure from following cam2's.
+IMG_KEYS.forEach(key => {
+  const id = IMG_SLIDER_IDS[key];
+  bindRange(id, id + 'Val', null, v => v, v => {
+    editors[tuningCam].img[key] = parseInt(v) || 0;
+  });
+});
+
+function loadImageSliders(cam){
+  const img = editors[cam].img;
+  IMG_KEYS.forEach(key => {
+    const id = IMG_SLIDER_IDS[key];
+    setSlider(id, img[key] ?? 0, v => v, id + 'Val', null);
+  });
+}
+
+function setTuningCam(cam){
+  if (cam === 'cam2' && !camera2On) return;   // nothing to tune while it's off
+  tuningCam = cam;
+  document.querySelectorAll('#tuningCamSelect button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.cam === cam);
+  });
+  loadImageSliders(cam);
+}
+
+document.querySelectorAll('#tuningCamSelect button').forEach(btn => {
+  btn.addEventListener('click', () => setTuningCam(btn.dataset.cam));
+});
+
+/* Show or hide everything that belongs to camera 2.
+
+   `syncCheckbox` is false when this is called from the /camera_status
+   poll (the checkbox is already whatever the user set, and rewriting it
+   mid-drag would fight them) and true when applying a freshly loaded
+   config.
+
+   The <img> src is set and cleared rather than left pointing at
+   /video_feed2 permanently: an MJPEG response is an open connection that
+   the browser keeps alive for as long as the element has that src, even
+   inside a display:none panel. */
+function applyCamera2Enabled(enabled, syncCheckbox){
+  enabled = !!enabled;
+  const checkbox = document.getElementById('camera2Enabled');
+  if (syncCheckbox) checkbox.checked = enabled;
+
+  if (enabled === camera2On) return;
+  camera2On = enabled;
+
+  document.getElementById('camPanel-cam2').classList.toggle('hidden', !enabled);
+  document.getElementById('feedGrid').classList.toggle('single', !enabled);
+  document.getElementById('camera2StatusPill').style.display = enabled ? '' : 'none';
+  document.querySelector('#tuningCamSelect button[data-cam="cam2"]').disabled = !enabled;
+
+  const feed = document.getElementById('liveFeed-cam2');
+  if (enabled){
+    // Cache-buster so a re-enable always starts a fresh stream instead of
+    // resuming a connection the browser considers already finished.
+    feed.src = '/video_feed2?t=' + Date.now();
+  } else {
+    feed.removeAttribute('src');
+    if (tuningCam === 'cam2') setTuningCam('cam1');
+  }
+
+  // The grid just went from one column to two (or back), so both canvases
+  // have a new size to match.
+  setTimeout(resizeCanvas, 60);
+}
+
+document.getElementById('camera2Enabled').addEventListener('change', e => {
+  applyCamera2Enabled(e.target.checked, false);
+  markUnsavedChange();
+  schedulePreview();
+});
+
+// ============================================================
+// API — load config on page open
+// ============================================================
+async function loadConfig(){
+  try {
+    const res  = await fetch('/get_lines');
+    const data = await res.json();
+
+    // Camera 2's visibility has to be applied BEFORE the canvases are
+    // measured -- a hidden panel has zero width, so a line drawn into it
+    // first would land on a 0x0 canvas.
+    applyCamera2Enabled(data.camera2_enabled, true);
+
+    const cameras = data.cameras || {};
+    CAM_IDS.forEach(cam => {
+      const ed  = editors[cam];
+      const blk = cameras[cam] || {};
+
+      ed.frameW = blk.frame_width  || 640;
+      ed.frameH = blk.frame_height || 480;
+
+      ed.p1      = blk.p1            || [Math.round(ed.frameW * 0.1), Math.round(ed.frameH * 0.5)];
+      ed.p2      = blk.p2            || [Math.round(ed.frameW * 0.9), Math.round(ed.frameH * 0.5)];
+      ed.alertPt = blk.alert_side_pt || [Math.round(ed.frameW * 0.5), Math.round(ed.frameH * 0.82)];
+
+      IMG_KEYS.forEach(key => { ed.img[key] = blk[key] ?? 0; });
+
+      ed.wrap.style.aspectRatio = `${ed.frameW} / ${ed.frameH}`;
+      document.getElementById(`resBadge-${cam}`).textContent = `${ed.frameW} × ${ed.frameH}`;
+    });
+
+    loadImageSliders(tuningCam);
+
+    const statuses = data.camera_status || {};
+    CAM_IDS.forEach(cam => {
+      if (statuses[cam]) updateCameraStatus(cam, statuses[cam].status, statuses[cam].message);
+    });
+
+    setSlider('personTh', data.person_conf_th ?? 0.50, v => Number(v).toFixed(2), 'personThVal', 'ledPerson');
+    setSlider('trainTh',  data.train_conf_th  ?? 0.45, v => Number(v).toFixed(2), 'trainThVal',  'ledTrain');
+
+    const cooldown = data.alert_cooldown_seconds ?? 30;
+    setSlider('cooldown', cooldown, v => `${v} s`, 'cooldownVal', 'ledCooldown');
+    const alertVolume = data.alert_volume ?? 100;
+    setSlider('alertVolume', alertVolume, v => `${v}%`, 'alertVolumeVal', 'ledVolume');
+    const savedLangs = Array.isArray(data.tts_languages) ? data.tts_languages : ['english'];
+    document.getElementById('langEnglish').checked  = savedLangs.includes('english');
+    document.getElementById('langHindi').checked    = savedLangs.includes('hindi');
+    document.getElementById('langRegional').checked = savedLangs.includes('regional');
+    updateLedTts();
+
+    if (data.train_off_start) document.getElementById('trainOffStart').value = data.train_off_start;
+    if (data.train_off_end)   document.getElementById('trainOffEnd').value   = data.train_off_end;
+
+    updateScheduleWindowText();
+    fetchDeviceStatus();
+
+  } catch(err){
+    console.error('Failed to load config:', err);
+    flashStatus(document.getElementById('lineSaveStatus'), 'Could not reach server', true);
+  }
+  resizeCanvas();
+}
+
+function setSlider(id, val, fmt, valId, ledId){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = val;
+  if (valId) document.getElementById(valId).textContent = fmt ? fmt(val) : val;
+  if (ledId) document.getElementById(ledId).textContent  = fmt ? fmt(val) : val;
+}
+
+// ============================================================
+// API — collect all settings and POST to /update_lines
+// ============================================================
+/* mode: 'line' (a camera's Save Line button), 'settings' (Save Settings),
+   or anything else for both. `lineStatusId` says which camera tile's
+   status text to flash -- both tiles have their own Save button, and a
+   save started from cam2 shouldn't report itself under cam1. */
+async function saveAll(mode, explicitSave = false, lineStatusId = 'lineSaveStatus'){
+  try {
+    const res  = await fetch('/update_lines', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(buildConfigBody(explicitSave))
+    });
+    const data = await res.json();
+    if (data.status === 'saved' && explicitSave){
+      const ts = new Date().toLocaleTimeString();
+      if (mode !== 'settings')
+        flashStatus(document.getElementById(lineStatusId),  `Saved ${ts}`);
+      if (mode !== 'line')
+        flashStatus(document.getElementById('settingsSaveStatus'), `Saved ${ts}`);
+
+      document.querySelectorAll('.led-item').forEach(item => {
+        item.classList.remove('flicker');
+        void item.offsetWidth;
+        item.classList.add('flicker');
+      });
+    }
+  } catch(err){
+    const msg = 'Save failed — check connection';
+    if (mode !== 'settings') flashStatus(document.getElementById(lineStatusId), msg, true);
+    if (mode !== 'line')     flashStatus(document.getElementById('settingsSaveStatus'), msg, true);
+    console.error('Save error:', err);
+  }
+}
+
+// ============================================================
+// Button wiring
+// ============================================================
+// Both cameras' lines are posted together on every save (see
+// buildConfigBody), so either Save Line button commits the whole page --
+// the button only decides which tile reports the result.
+[['saveLineBtn', 'lineSaveStatus'], ['saveLineBtn2', 'lineSaveStatus2']].forEach(([btnId, statusId]) => {
+  document.getElementById(btnId).addEventListener('click', async () => {
+    const btn = document.getElementById(btnId);
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    await saveAll('line', true, statusId);
+    markSaved();
+    btn.textContent = 'Save Line';
+    btn.disabled = false;
+  });
+});
+
+document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('saveSettingsBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  await saveAll('settings', true);
+  markSaved();
+  btn.textContent = 'Save settings';
+  btn.disabled = false;
+});
+
+// Resets only the camera currently selected in the tuning selector --
+// the other camera's tuning is left exactly as it was.
+document.getElementById('resetImageBtn').addEventListener('click', () => {
+  IMG_KEYS.forEach(key => { editors[tuningCam].img[key] = 0; });
+  loadImageSliders(tuningCam);
+  markUnsavedChange();
+  schedulePreview();
+  flashStatus(
+    document.getElementById('settingsSaveStatus'),
+    `${CAM_LABELS[tuningCam]} image reset — click Save settings to apply`
+  );
+});
+
+// ============================================================
+// Antigravity-Style RIGHT Sidebar Toggle
+// ============================================================
+const sidebarPanel = document.getElementById('sidebarPanel');
+const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+
+function toggleSidebar(){
+  const isCollapsed = sidebarPanel.classList.toggle('collapsed');
+  sidebarToggleBtn.classList.toggle('active', !isCollapsed);
+  setTimeout(resizeCanvas, 320);
+}
+
+if (sidebarToggleBtn && sidebarPanel){
+  sidebarToggleBtn.addEventListener('click', toggleSidebar);
+}
+
+window.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b'){
+    e.preventDefault();
+    toggleSidebar();
+  }
+});
+
+// ============================================================
+// Boot
+// ============================================================
+loadConfig();
+</script>
+</body>
+</html>
